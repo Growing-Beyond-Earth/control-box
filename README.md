@@ -7,13 +7,6 @@ Sitting atop the growth chamber, the GBE Control Box runs the LED lighting and f
 
 
 
-
-![Pico](https://user-images.githubusercontent.com/1426877/134378770-a2653168-148a-4f6a-ac50-07231c727056.png)
-
-
-
-
-
 Shield: [![CC BY-NC-SA 4.0][cc-by-nc-sa-shield]][cc-by-nc-sa]
 
 This work is licensed under a
