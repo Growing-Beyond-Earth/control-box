@@ -81,8 +81,8 @@ offh, offm = map(int, lights_off_time.split(':')); off_seconds = (offh*60 + offm
 # Set PWM frequency on all channels
 
 r=machine.PWM(machine.Pin(0)); r.freq(20000)   # Red channel
-b=machine.PWM(machine.Pin(1)); b.freq(20000)   # Blue channel
-g=machine.PWM(machine.Pin(2)); g.freq(20000)   # Green channel
+g=machine.PWM(machine.Pin(1)); g.freq(20000)   # Green channel
+b=machine.PWM(machine.Pin(2)); b.freq(20000)   # Blue channel
 w=machine.PWM(machine.Pin(3)); w.freq(20000)   # White channel
 f=machine.PWM(machine.Pin(4)); f.freq(20000)   # Fan
 
