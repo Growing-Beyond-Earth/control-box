@@ -1,7 +1,7 @@
 # GROWING BEYOND EARTH CONTROL BOX
 # RASPBERRY PI PICO / MICROPYTHON
 
-# FAIRCHILD TROPICAL BOTANIC GARDEN, OCTOBER 20, 2021
+# FAIRCHILD TROPICAL BOTANIC GARDEN, NOVEMBER 4, 2021
 
 # The Growing Beyond Earth (GBE) control box is a device that controls
 # the LED lights and fan in a GBE growth chamber. It can also control
@@ -18,21 +18,22 @@
 
 # LIGHTS -- Time values are hh:mm strings based on a 24h clock;  
 #           brightness values are integers from 0 to 255 that set the
-#           PWM duty cycle
+#           PWM duty cycle. Each channel has an upper limit, noted
+#           below, to prevent overheating the LEDs
 
-lights_on_time = "07:00"
+lights_on_time =  "07:00"
 lights_off_time = "19:00"
 
-red_brightness = 72
-green_brightness = 60
-blue_brightness = 44
-white_brightness = 52
+red_brightness =    72   # Maximum = 200
+green_brightness =  60   # Maximum =  89
+blue_brightness =   44   # Maximum =  94
+white_brightness =  52   # Maximum = 146
 
 
 # FAN -- Fan power is an integer from 0 to 255 that sets the PWM
 #        duty cycle
 
-fan_power_when_lights_on = 255
+fan_power_when_lights_on =  255
 fan_power_when_lights_off = 128
 
 # --------------------------------------------------------------
@@ -100,7 +101,6 @@ def getRTC():
 	# catch any errors
 	try:
 	   rtc_dt=rtci.datetime()
-	   print("Curent RTC",rtc_dt)
 	   #Debug RTC
 	except Exception as e:
 	  print("An exception has occurred with the RTC: ", e)
@@ -113,18 +113,18 @@ def getRTC():
 def controlLightsAndFan():
 	if rtc_seconds >= on_seconds and rtc_seconds < off_seconds:
 		# Lights on
-		r.duty_u16(int(red_brightness)*256)
-		g.duty_u16(int(green_brightness)*256)
-		b.duty_u16(int(blue_brightness)*256)
-		w.duty_u16(int(white_brightness)*256)
-		f.duty_u16(fan_power_when_lights_on * 256)
+		r.duty_u16(int(min(200,red_brightness))*256)   # Maximum brightness = 200
+		g.duty_u16(int(min(89,green_brightness))*256)  # Maximum brightness = 89
+		b.duty_u16(int(min(94,blue_brightness))*256)   # Maximum brightness = 94
+		w.duty_u16(int(min(146,white_brightness))*256) # Maximum brightness = 146
+		f.duty_u16(int(min(255,fan_power_when_lights_on)) * 256) # Maximum fan power = 255
 	else:
 		# Lights off
-		r.duty_u16(int(red_brightness)*0)
-		g.duty_u16(int(green_brightness)*0)
-		b.duty_u16(int(blue_brightness)*0)
-		w.duty_u16(int(white_brightness)*0)
-		f.duty_u16(fan_power_when_lights_off * 256)
+		r.duty_u16(0)
+		g.duty_u16(0)
+		b.duty_u16(0)
+		w.duty_u16(0)
+		f.duty_u16(int(min(255,fan_power_when_lights_off)) * 256)
 
 def pwmLED():
 	try:
@@ -135,14 +135,25 @@ def pwmLED():
 	except Exception as e:
 	  print("An exception has occurred with the LED: ", e)
 
+def printStatus():
+    try:
+        print(str(rtc_dt[0]) + "-" + str("%02d" % rtc_dt[1]) + "-" + str("%02d" % rtc_dt[2])
+              + " " + str(rtc_dt[4]) + ":" + str("%02d" % rtc_dt[5]) + ":" + str("%02d" % rtc_dt[6])
+              + "   R=" + str("%3.0f" % (r.duty_u16()/255))
+              + "  G=" + str("%3.0f" % (g.duty_u16()/255))
+              + "  B=" + str("%3.0f" % (b.duty_u16()/255))
+              + "  W=" + str("%3.0f" % (w.duty_u16()/255)) + "   "
+              + str("%5.2f" % ina.voltage()) + " V  "
+              + str("%4.0f" % ina.current()) + " mA  "
+              + str("%5.2f" % (ina.power()/1000)) + " W")
+    except Exception as e:
+	  print("An exception has occurred: ", e)
+       
+
+
 def currentSensor():     
 	try:
-	   ina.configure()
-	   print("Voltage/current/power sensor readings:")
-	   print("     Bus Voltage: %.3f V" % ina.voltage())
-	   print("     Current: %.3f mA" % ina.current())
-	   print("     Power: %.3f mW" % ina.power())
-	
+	   ina.configure()	
 	except:
 		print("Error reading from the current sensor", e)    
 
@@ -150,17 +161,28 @@ def currentSensor():
 # ----------------------------Main Start----------------------------
 # Print information at startup
 print("\nGROWING BEYOND EARTH, FAIRCHILD TROPICAL BOTANIC GARDEN\n")
-print ("Software release date:\n 2021-10-20\n")
+
+
+print ("Raspberry Pi Pico Unique ID:")
+
+board_id=""
+raw_id = machine.unique_id()
+for bval in raw_id : board_id += str((hex(bval)[2:]))
+print (board_id)
+
+print ("\nSoftware release date:\n2021-11-04\n")
 print ("Internal clock time:")
-print ("" + str(rtci.datetime()[0]) + "-" + str(rtci.datetime()[1]) + "-" + str(rtci.datetime()[2]) + "   " + str(rtci.datetime()[4]) + ":" + str(rtci.datetime()[5]) + ":" + str(rtci.datetime()[6]) + "\n") 
+print (str(rtci.datetime()[0]) + "-" + str("%02d" % rtci.datetime()[1]) + "-" + str("%02d" % rtci.datetime()[2]) + " " + str("%02d" % rtci.datetime()[4]) + ":" + str("%02d" % rtci.datetime()[5]) + ":" + str("%02d" % rtci.datetime()[6]) + "\n") 
 currentSensor()
+print ("\n")
 
 #Main Loop    
 while True:
 	try:
 		rtc_dt, rtc_seconds = getRTC()
 		controlLightsAndFan()
+		printStatus()
 		pwmLED()
 		time.sleep(2) # Wait few seconds before repeating
 	except Exception as e:
-		print("failed Main Loop! Trying again: ", e)
+		print("Failed Main Loop! Trying again: ", e)
