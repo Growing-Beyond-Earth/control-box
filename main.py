@@ -1,7 +1,7 @@
 # GROWING BEYOND EARTH CONTROL BOX
 # RASPBERRY PI PICO / MICROPYTHON
 
-# FAIRCHILD TROPICAL BOTANIC GARDEN, NOVEMBER 4, 2021
+# FAIRCHILD TROPICAL BOTANIC GARDEN, NOVEMBER 16, 2021
 
 # The Growing Beyond Earth (GBE) control box is a device that controls
 # the LED lights and fan in a GBE growth chamber. It can also control
@@ -52,9 +52,14 @@ from ds3231 import DS3231  # Hardware (I2C) real time clock
 import ina219              # Current sensor
 
 
+# --------------Read unique ID of Raspberry Pi Pico-------------
+board_id=""
+raw_id = machine.unique_id()
+for bval in raw_id : board_id += str((hex(bval)[2:]))
+
+
 # ----------------Set up status LED on Control Box--------------
-led = machine.PWM(machine.Pin(6))
-led.freq(1000)
+led = machine.PWM(machine.Pin(6)); led.freq(1000)
 
 
 # -------Set up I2C bus 0 for devices inside the control box---
@@ -68,8 +73,6 @@ rtc = DS3231(i2c0) # Read Time from hardware RTC
 rtc_time_tuple = rtc.DateTime() # Create a tuple with Time from Hardware RTC
 rtci = machine.RTC()
 rtci.datetime([x for x in rtc_time_tuple] + [0]) # Set local Machine time from Hardware RTC and add a 0 at the end. 
-print(rtci.datetime())
-
 
 # Translate the specified on/off times to seconds since midnight
 
@@ -93,11 +96,15 @@ g.duty_u16(0)
 b.duty_u16(0)
 w.duty_u16(0)
 
+# Initialize variables for counting fan RPMs
+counter = 0
+prev_ms = 0
+
 
 # ----------------------Set up Functions -----------------------
 
 def getRTC():
-	# Attempt to read the time from the i2c real time clock and
+	# Attempt to read the time from the internal real time clock and
 	# catch any errors
 	try:
 	   rtc_dt=rtci.datetime()
@@ -106,9 +113,9 @@ def getRTC():
 	  print("An exception has occurred with the RTC: ", e)
 	 
 	rtc_seconds = ((((rtc_dt[4])*60) + rtc_dt[5]) * 60) + rtc_dt[6]
-	#print("Seconds ",rtc_seconds) # Show Seconds 
+	rtc_ms = time.ticks_ms()
 
-	return rtc_dt, rtc_seconds
+	return rtc_dt, rtc_seconds, rtc_ms
 
 def controlLightsAndFan():
 	if rtc_seconds >= on_seconds and rtc_seconds < off_seconds:
@@ -134,18 +141,30 @@ def pwmLED():
 
 	except Exception as e:
 	  print("An exception has occurred with the LED: ", e)
+	  
+def GotIrq(pin):
+    global counter
+    counter += 1
 
 def printStatus():
     try:
-        print(str(rtc_dt[0]) + "-" + str("%02d" % rtc_dt[1]) + "-" + str("%02d" % rtc_dt[2])
-              + " " + str(rtc_dt[4]) + ":" + str("%02d" % rtc_dt[5]) + ":" + str("%02d" % rtc_dt[6])
-              + "   R=" + str("%3.0f" % (r.duty_u16()/255))
-              + "  G=" + str("%3.0f" % (g.duty_u16()/255))
-              + "  B=" + str("%3.0f" % (b.duty_u16()/255))
-              + "  W=" + str("%3.0f" % (w.duty_u16()/255)) + "   "
-              + str("%5.2f" % ina.voltage()) + " V  "
-              + str("%4.0f" % ina.current()) + " mA  "
-              + str("%5.2f" % (ina.power()/1000)) + " W")
+        print(board_id + "  " 
+              + str(rtc_dt[0]) + "-"
+              + str("%02d" % rtc_dt[1]) + "-"
+              + str("%02d" % rtc_dt[2])
+              + " " + str("%02d" % rtc_dt[4]) + ":"
+              + str("%02d" % rtc_dt[5]) + ":"
+              + str("%02d" % rtc_dt[6])
+              + "  " + str("%3.f" % (r.duty_u16()/256))
+              + " " + str("%3.f" % (g.duty_u16()/256))
+              + " " + str("%3.f" % (b.duty_u16()/256))
+              + " " + str("%3.f" % (w.duty_u16()/256)) + "  "
+              + str("%5.2f" % ina.voltage()) + " "
+              + str("%4.f" % ina.current()) + " "
+              + str("%5.2f" % (ina.power()/1000)) + "  "
+              + str("%3.f" % (f.duty_u16()/256)) + " "
+              + str("%4.f" % (counter/(rtc_ms-prev_ms)*60000)))
+
     except Exception as e:
 	  print("An exception has occurred: ", e)
        
@@ -162,27 +181,25 @@ def currentSensor():
 # Print information at startup
 print("\nGROWING BEYOND EARTH, FAIRCHILD TROPICAL BOTANIC GARDEN\n")
 
+print ("Software release date: 2021-11-16\n")
 
-print ("Raspberry Pi Pico Unique ID:")
-
-board_id=""
-raw_id = machine.unique_id()
-for bval in raw_id : board_id += str((hex(bval)[2:]))
-print (board_id)
-
-print ("\nSoftware release date:\n2021-11-04\n")
-print ("Internal clock time:")
-print (str(rtci.datetime()[0]) + "-" + str("%02d" % rtci.datetime()[1]) + "-" + str("%02d" % rtci.datetime()[2]) + " " + str("%02d" % rtci.datetime()[4]) + ":" + str("%02d" % rtci.datetime()[5]) + ":" + str("%02d" % rtci.datetime()[6]) + "\n") 
 currentSensor()
-print ("\n")
+
+print ("-----RPI-PICO-ID -------DATE ----TIME  RED-GRN-BLU-WHT  LED-V---mA-----W  FAN--RPM")
+
+# Set up a trigger to count fan rotations for RPM calculation
+p5 = Pin(5, Pin.IN, Pin.PULL_UP)
+p5.irq(trigger=Pin.IRQ_FALLING, handler=GotIrq)
 
 #Main Loop    
 while True:
 	try:
-		rtc_dt, rtc_seconds = getRTC()
+		rtc_dt, rtc_seconds, rtc_ms = getRTC()
 		controlLightsAndFan()
 		printStatus()
 		pwmLED()
+		prev_ms = rtc_ms
+		counter = 0
 		time.sleep(2) # Wait few seconds before repeating
 	except Exception as e:
 		print("Failed Main Loop! Trying again: ", e)
