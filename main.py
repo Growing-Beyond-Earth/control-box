@@ -181,7 +181,7 @@ def currentSensor():
 # Print information at startup
 print("\nGROWING BEYOND EARTH, FAIRCHILD TROPICAL BOTANIC GARDEN\n")
 
-print ("Software release date: 2021-11-16\n")
+print ("Software release date: 2021-11-19\n")
 
 currentSensor()
 
