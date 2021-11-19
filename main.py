@@ -1,7 +1,7 @@
 # GROWING BEYOND EARTH CONTROL BOX
 # RASPBERRY PI PICO / MICROPYTHON
 
-# FAIRCHILD TROPICAL BOTANIC GARDEN, NOVEMBER 16, 2021
+# FAIRCHILD TROPICAL BOTANIC GARDEN, NOVEMBER 19, 2021
 
 # The Growing Beyond Earth (GBE) control box is a device that controls
 # the LED lights and fan in a GBE growth chamber. It can also control
@@ -48,7 +48,7 @@ import machine
 from machine import Pin, PWM
 import utime, time
 from time import sleep
-from ds3231 import DS3231  # Hardware (I2C) real time clock
+from ds3231 import DS3231  # I2C real time clock
 import ina219              # Current sensor
 
 
@@ -69,10 +69,11 @@ ina = ina219.INA219(0.1,i2c0)   # Current sensor
 
 
 # -------------Set up real time clock on I2C bus 0--------------
-rtc = DS3231(i2c0) # Read Time from hardware RTC
-rtc_time_tuple = rtc.DateTime() # Create a tuple with Time from Hardware RTC
+rtc = DS3231(i2c0) # Read Time from I2C RTC
+rtc_time_tuple = rtc.DateTime() # Create a tuple with Time from I2C RTC
 rtci = machine.RTC()
-rtci.datetime([x for x in rtc_time_tuple] + [0]) # Set local Machine time from Hardware RTC and add a 0 at the end. 
+rtci.datetime([x for x in rtc_time_tuple] + [0]) # Set local Machine time from I2C RTC and add a 0 at the end.
+loghour = rtci.datetime()[4] # Set a variable for hourly logging 
 
 # Translate the specified on/off times to seconds since midnight
 
@@ -104,44 +105,44 @@ prev_ms = 0
 # ----------------------Set up Functions -----------------------
 
 def getRTC():
-	# Attempt to read the time from the internal real time clock and
-	# catch any errors
-	try:
-	   rtc_dt=rtci.datetime()
-	   #Debug RTC
-	except Exception as e:
-	  print("An exception has occurred with the RTC: ", e)
-	 
-	rtc_seconds = ((((rtc_dt[4])*60) + rtc_dt[5]) * 60) + rtc_dt[6]
-	rtc_ms = time.ticks_ms()
+    # Attempt to read the time from the internal real time clock and
+    # catch any errors
+    try:
+       rtc_dt=rtci.datetime()
+       #Debug RTC
+    except Exception as e:
+      print("An exception has occurred with the RTC: ", e)
+     
+    rtc_seconds = ((((rtc_dt[4])*60) + rtc_dt[5]) * 60) + rtc_dt[6]
+    rtc_ms = time.ticks_ms()
 
-	return rtc_dt, rtc_seconds, rtc_ms
+    return rtc_dt, rtc_seconds, rtc_ms
 
 def controlLightsAndFan():
-	if rtc_seconds >= on_seconds and rtc_seconds < off_seconds:
-		# Lights on
-		r.duty_u16(int(min(200,red_brightness))*256)   # Maximum brightness = 200
-		g.duty_u16(int(min(89,green_brightness))*256)  # Maximum brightness = 89
-		b.duty_u16(int(min(94,blue_brightness))*256)   # Maximum brightness = 94
-		w.duty_u16(int(min(146,white_brightness))*256) # Maximum brightness = 146
-		f.duty_u16(int(min(255,fan_power_when_lights_on)) * 256) # Maximum fan power = 255
-	else:
-		# Lights off
-		r.duty_u16(0)
-		g.duty_u16(0)
-		b.duty_u16(0)
-		w.duty_u16(0)
-		f.duty_u16(int(min(255,fan_power_when_lights_off)) * 256)
+    if rtc_seconds >= on_seconds and rtc_seconds < off_seconds:
+        # Lights on
+        r.duty_u16(int(min(200,red_brightness))*256)   # Maximum brightness = 200
+        g.duty_u16(int(min(89,green_brightness))*256)  # Maximum brightness = 89
+        b.duty_u16(int(min(94,blue_brightness))*256)   # Maximum brightness = 94
+        w.duty_u16(int(min(146,white_brightness))*256) # Maximum brightness = 146
+        f.duty_u16(int(min(255,fan_power_when_lights_on)) * 256) # Maximum fan power = 255
+    else:
+        # Lights off
+        r.duty_u16(0)
+        g.duty_u16(0)
+        b.duty_u16(0)
+        w.duty_u16(0)
+        f.duty_u16(int(min(255,fan_power_when_lights_off)) * 256)
 
 def pwmLED():
-	try:
-	   for duty in range(45000): led.duty_u16(duty); time.sleep(0.0001)
-	   for duty in range(45000, 0, -1): led.duty_u16(duty); time.sleep(0.0001)
-	
+    try:
+       for duty in range(45000): led.duty_u16(duty); time.sleep(0.0001)
+       for duty in range(45000, 0, -1): led.duty_u16(duty); time.sleep(0.0001)
+    
 
-	except Exception as e:
-	  print("An exception has occurred with the LED: ", e)
-	  
+    except Exception as e:
+      print("An exception has occurred with the LED: ", e)
+      
 def GotIrq(pin):
     global counter
     counter += 1
@@ -163,19 +164,18 @@ def printStatus():
               + str("%4.f" % ina.current()) + " "
               + str("%5.2f" % (ina.power()/1000)) + "  "
               + str("%3.f" % (f.duty_u16()/256)) + " "
-              + str("%4.f" % (counter/(rtc_ms-prev_ms)*60000)))
+              + str("%4.f" % (counter/(rtc_ms-prev_ms)*30000)))
 
     except Exception as e:
-	  print("An exception has occurred: ", e)
+        print("An exception has occurred: ", e)
        
 
 
 def currentSensor():     
-	try:
-	   ina.configure()	
-	except:
-		print("Error reading from the current sensor", e)    
-
+    try:
+       ina.configure()
+    except:
+        print("Error reading from the current sensor", e)
 
 # ----------------------------Main Start----------------------------
 # Print information at startup
@@ -193,13 +193,16 @@ p5.irq(trigger=Pin.IRQ_FALLING, handler=GotIrq)
 
 #Main Loop    
 while True:
-	try:
-		rtc_dt, rtc_seconds, rtc_ms = getRTC()
-		controlLightsAndFan()
-		printStatus()
-		pwmLED()
-		prev_ms = rtc_ms
-		counter = 0
-		time.sleep(2) # Wait few seconds before repeating
-	except Exception as e:
-		print("Failed Main Loop! Trying again: ", e)
+    try:
+        rtc_dt, rtc_seconds, rtc_ms = getRTC()
+        controlLightsAndFan()
+        printStatus()
+        prev_ms = rtc_ms; counter = 0 # reset fan RPM counter
+        if loghour != rtc_dt[4]:
+            rtc.DateTime(rtc_dt) # Set the I2C RTC to prevent drift
+            loghour = rtc_dt[4]
+        pwmLED() # pulse status LED
+    except Exception as e:
+        print("Failed Main Loop! Trying again: ", e)
+    time.sleep(2) # Wait few seconds before repeating
+
