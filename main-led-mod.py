@@ -196,7 +196,7 @@ def read1():
 # Print information at startup
 print("\nGROWING BEYOND EARTH, FAIRCHILD TROPICAL BOTANIC GARDEN\n")
 
-print ("Software release date: 2021-11-19\n")
+print ("Software release date: 2022-06-28\n")
 
 currentSensor()
 
