@@ -1,0 +1,1 @@
+{"lights": {"timer": {"on": "07:00", "off": "19:00"}, "duty": {"white": 44, "blue": 52, "red": 72, "green": 60}}, "fan": {"duty": {"when lights off": 128, "when lights on": 255}}, "time zone": {"GMT offset": -5}}
